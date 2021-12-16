@@ -49,37 +49,96 @@ void StarOne()
 	Console.WriteLine(GetPacket(sr));	
 }
 
-int Go(Reader sr)
+long Go(Reader sr, Op op, int cnt = -1)
 {
-	var sum = 0;
+	var sum = op == Op.Sum ? 0L : 
+		op == Op.Prod ? 1L : 
+		op == Op.Min ? long.MaxValue :
+		op == Op.Max ? long.MinValue : 0L;
 
-	while (!sr.IsEnd)
+	var idx = 0;
+
+	while ((cnt == -1 && !sr.IsEnd) || (cnt != -1 && idx < cnt))
 	{
-		sum += GetPacket(sr);
+		if (op == Op.Sum)
+        {
+			var cur = GetPacket(sr);
+
+			if (cur != -1)
+			{
+				sum += cur;
+			}
+		}
+		else if (op == Op.Prod)
+        {
+			var cur = GetPacket(sr);
+
+			if (cur != -1)
+            {
+				sum *= cur;
+            }
+		}
+        else if (op == Op.Min)
+        {
+			var cur = GetPacket(sr);
+
+			if (cur < sum && cur != -1)
+            {
+				sum = cur;
+            }
+        }
+        else if (op == Op.Max)
+        {
+			var cur = GetPacket(sr);
+
+			if (cur > sum && cur != -1)
+			{
+				sum = cur;
+			}
+		}
+		else if (op == Op.Gt)
+        {
+			var f = GetPacket(sr);
+			var s = GetPacket(sr);
+
+			return (f > s) ? 1 : 0;
+        }
+		else if (op == Op.Lt)
+		{
+			var f = GetPacket(sr);
+			var s = GetPacket(sr);
+
+			return (f < s) ? 1 : 0;
+		}
+		else if (op == Op.Eq)
+		{
+			var f = GetPacket(sr);
+			var s = GetPacket(sr);
+
+			return (f == s) ? 1 : 0;
+		}
+
+		idx++;
 	}
 
 	return sum;
 }
 
-int GetPacket(Reader sr)
+long GetPacket(Reader sr)
 {
 	if (!sr.CanRead(3))
     {
-		return 0;
+		return -1;
     }
 
 	var ver = sr.Read(3);
 
-	var sum = ver;
-
 	if (!sr.CanRead(3))
 	{
-		return ver;
+		return -1;
 	}
 
 	var pType = sr.Read(3);
-
-	Console.WriteLine((pType == 4 ? "Literal: " : "Operator: ") + ver);
 
 	if (pType == 4)
 	{
@@ -93,37 +152,35 @@ int GetPacket(Reader sr)
 
 		} while (!isEnd);
 
-		var val = Convert.ToInt64(sb.ToString(), 2);
+		return Convert.ToInt64(sb.ToString(), 2);
+	}
+	
+	var lType = sr.Read(1);
+	var len = lType == 0 ? 15 : 11;
+	var num = sr.Read(len);
 
-		return sum;
+	if (lType == 0)
+	{
+		var newSr = new Reader(sr.ReadRaw(num));
+
+		return Go(newSr, (Op)pType);
 	}
 	else
 	{
-		var lType = sr.Read(1);
-		var len = lType == 0 ? 15 : 11;
-		var num = sr.Read(len);
-
-		if (lType == 0)
-		{
-			var newSr = new Reader(sr.ReadRaw(num));
-
-			return Go(newSr) + sum;
-		}
-		else
-		{
-            for (int i = 0; i < num; i++)
-            {
-				sum += GetPacket(sr);
-            }
-
-			return sum;
-		}
+		return Go(sr, (Op)pType, num);
 	}
+	
 }
 
-void StarTwo()
+enum Op
 {
-
+	Sum = 0,
+	Prod = 1,
+	Min = 2,
+	Max = 3,
+	Gt = 5,
+	Lt = 6,
+	Eq = 7
 }
 
 class Reader
